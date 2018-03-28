@@ -26,7 +26,8 @@ control_model <- function(...) {
         stop(txt)
     }
     output <- utils::modifyList(default, userval)
-    class(control_model) <- "bayescm_control"
+    attr(output, "jagsfun") <- "jags.model"
+    class(output) <- "bayescm_control"
     return(output)
 }
 
@@ -45,6 +46,21 @@ control_samples <- function(...) {
         stop(txt)
     }
     output <- utils::modifyList(default, userval)
-    class(control_model) <- "bayescm_control"
+    attr(output, "jagsfun") <- "coda.samples"
+    class(output) <- "bayescm_control"
     return(output)
+}
+
+# @title Print method for MCMC controls
+print.bayescm_control <- function(x, ...) {
+    x[vapply(x, is.null, logical(1))] <- "'default'"
+    title <- sprintf(
+        "MCMC controls (arguments for rjags::%s() function)\n",
+        attr(x, "jagsfun"))
+    out <- sprintf("  %s = %s",
+                   format(names(x), width = 15),
+                   format(unlist(x), justify = "centre"))
+    cat(title, "\n")
+    cat(out, sep = "\n")
+    invisible()
 }
