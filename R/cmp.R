@@ -70,13 +70,14 @@ bayescmp <- function(formula, data, sumto,
     terms <- attr(frame, "terms")
     y <- stats::model.response(frame)
     X <- stats::model.matrix(terms, frame)
-    if (any(y == 0)) y[y == 0] <- 0.01
+    yy <- y
+    if (any(y == 0)) yy[y == 0] <- 0.01
     #-------------------------------------------
     # Define data
     data_jags <- list("n" = nrow(X),
                       "p" = ncol(X),
                       "X" = X,
-                      "y" = y,
+                      "y" = yy,
                       "sumto" = sumto)
     #-------------------------------------------
     # Settings for MCMC
@@ -114,9 +115,11 @@ bayescmp <- function(formula, data, sumto,
     #-------------------------------------------
     # Output
     output <- list(
+        "model" = "COM-Poisson",
         "formula" = formula,
         "model" = model,
-        "samples" = samples
+        "posterior_samples" = samples
     )
+    class(output) <- "bayescm"
     return(output)
 }

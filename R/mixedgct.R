@@ -1,9 +1,9 @@
-# @title COM-Poisson Model (original parametrization) in JAGS Language
+# @title Gamma-Count Model in JAGS Language
 # @author Eduardo Jr
 # @description A string with defined model in a JAGS language
-jags_string_cmp0 <- function() {
+jags_string_gct <- function() {
     "
- data {
+  data {
     for (i in 1:n) {
       ze[i] <- 0
     }
@@ -13,25 +13,29 @@ jags_string_cmp0 <- function() {
     C <- 1e5
     # Log-verossimilhanca
     for (i in 1:n) {
-      for (j in 1:sumto) {
-        Z[i, j] <- exp(j * log(lambda[i]) - nu * logfact(j))
-      }
       la[i] <- -ll[i] + C
-      ll[i] <- y[i] * log(lambda[i]) - nu * logfact(y[i]) - log(sum(Z[i, ]))
-      lambda[i] <- exp(inprod(X[i, ], theta[]))
+      ll[i] <- log(pgamma(1, y[i] * alpha,
+                          kappa[i]) -
+                   pgamma(1, (y[i] + 1) * alpha,
+                          kappa[i]))
+      kappa[i] <- alpha * exp(X[i, ] %*% theta[] + Z[i, ] %*% b[])
       ze[i] ~ dpois(la[i])
+    }
+    # Random effects
+    for (k in 1:q) {
+      b[k] ~ dnorm(0.0, tau)
     }
     # Prioris
     for (j in 1:p) {
       theta[j] ~ dnorm(0.0, 1e-3)
     }
-    phi ~ dnorm(0.0, 0.1)
-    nu <- exp(phi)
+    gamma ~ dnorm(0.0, 0.1)
+    alpha <- exp(gamma)
   }
 "
 }
 
-#' @title Fitting COM-Poisson (original parametrization) Model Based on MCMC
+#' @title Fitting Gamma-Count Model Based on MCMC
 #' @author Eduardo Jr
 #' @description Build matrices and organize data to use
 #'     \code{\link[rjags]{jags.model}}
@@ -39,8 +43,6 @@ jags_string_cmp0 <- function() {
 #'     models using Markov Chain Monte Carlo (MCMC).
 #' @param formula A formula to define fixed effects.
 #' @param data The data frame.
-#' @param sumto Upper bound to infinite sum of the normalization
-#'     constant
 #' @param .control_model See \link{control_model}.
 #' @param .control_samples See \link{control_samples}.
 #' @export
@@ -54,14 +56,14 @@ jags_string_cmp0 <- function() {
 #' y <- rpois(50, lambda = exp(X %*% beta))
 #'
 #' # Sampling and summarise posterior
-#' model <- bayescmp0(y ~ X - 1, sumto = 100L)
+#' model <- bayesgct(y ~ X - 1)
 #' vapply(model$samples, function(x) apply(x, 2L, mean), double(3))
 #'
 #' }
 #'
-bayescmp0 <- function(formula, data, sumto,
-                      .control_model = control_model(),
-                      .control_samples = control_samples()) {
+bayesgct <- function(formula, data,
+                     .control_model = control_model(),
+                     .control_samples = control_samples()) {
     #-------------------------------------------
     # Build matrices
     if (missing(data)) data <- environment(formula)
@@ -76,14 +78,13 @@ bayescmp0 <- function(formula, data, sumto,
     data_jags <- list("n" = nrow(X),
                       "p" = ncol(X),
                       "X" = X,
-                      "y" = yy,
-                      "sumto" = sumto)
+                      "y" = yy)
     #-------------------------------------------
     # Settings for MCMC
     if (is.null(.control_model$inits)) {
         m0 <- stats::glm.fit(x = X, y = y, family = stats::poisson())
         coefs <- m0$coefficients
-        .control_model$inits <-  list("theta" = coefs, "phi" = 0)
+        .control_model$inits <-  list("theta" = coefs, "gamma" = 0)
     }
     if (is.null(.control_samples$variable.names)) {
         .control_samples$variable.names <- names(.control_model$inits)
@@ -91,7 +92,7 @@ bayescmp0 <- function(formula, data, sumto,
     #-------------------------------------------
     # Initialize model
     model <- rjags::jags.model(
-        file     = base::textConnection(jags_string_cmp0()),
+        file     = base::textConnection(jags_string_gct()),
         data     = data_jags,
         inits    = .control_model$inits,
         n.chains = .control_model$n.chains,
@@ -114,9 +115,10 @@ bayescmp0 <- function(formula, data, sumto,
     #-------------------------------------------
     # Output
     output <- list(
-        "model" = "COM-Poisson",
+        "model" = "Gamma-Count",
         "formula" = formula,
-        "model" = model,
+        "data" = list(y = y, X = X),
+        "jags_model" = model,
         "posterior_samples" = samples
     )
     class(output) <- "bayescm"

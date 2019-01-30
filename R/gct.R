@@ -67,13 +67,14 @@ bayesgct <- function(formula, data,
     terms <- attr(frame, "terms")
     y <- stats::model.response(frame)
     X <- stats::model.matrix(terms, frame)
-    if (any(y == 0)) y[y == 0] <- 0.01
+    yy <- y
+    if (any(y == 0)) yy[y == 0] <- 0.01
     #-------------------------------------------
     # Define data
     data_jags <- list("n" = nrow(X),
                       "p" = ncol(X),
                       "X" = X,
-                      "y" = y)
+                      "y" = yy)
     #-------------------------------------------
     # Settings for MCMC
     if (is.null(.control_model$inits)) {
@@ -110,9 +111,12 @@ bayesgct <- function(formula, data,
     #-------------------------------------------
     # Output
     output <- list(
+        "model" = "Gamma-Count",
         "formula" = formula,
-        "model" = model,
-        "samples" = samples
+        "data" = list(y = y, X = X),
+        "jags_model" = model,
+        "posterior_samples" = samples
     )
+    class(output) <- "bayescm"
     return(output)
 }
